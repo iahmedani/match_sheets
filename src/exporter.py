@@ -1,6 +1,7 @@
 """Excel export functionality for match results"""
 
 import pandas as pd
+import numpy as np
 import io
 from typing import Optional
 import logging
@@ -38,19 +39,35 @@ class ExcelExporter:
         """
         logger.info(f"Exporting results to Excel: {filename}")
 
+        # Clean DataFrames - replace NaN/Inf values
+        source_df_clean = source_df.copy()
+        target_df_clean = target_df.copy()
+        results_df_clean = results_df.copy()
+
+        # Replace NaN and Inf with None (which Excel handles as empty cells)
+        source_df_clean = source_df_clean.replace([np.inf, -np.inf], None)
+        target_df_clean = target_df_clean.replace([np.inf, -np.inf], None)
+        results_df_clean = results_df_clean.replace([np.inf, -np.inf], None)
+
+        # Fill NaN with None
+        source_df_clean = source_df_clean.where(pd.notna(source_df_clean), None)
+        target_df_clean = target_df_clean.where(pd.notna(target_df_clean), None)
+        results_df_clean = results_df_clean.where(pd.notna(results_df_clean), None)
+
         # Create a BytesIO buffer
         output = io.BytesIO()
 
-        # Create Excel writer with xlsxwriter engine
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            # Write source data
-            source_df.to_excel(writer, sheet_name='source', index=False)
+        # Create Excel writer with xlsxwriter engine and nan_inf_to_errors option
+        with pd.ExcelWriter(output, engine='xlsxwriter',
+                          engine_kwargs={'options': {'nan_inf_to_errors': True}}) as writer:
+            # Write source data (cleaned)
+            source_df_clean.to_excel(writer, sheet_name='source', index=False)
 
-            # Write target data
-            target_df.to_excel(writer, sheet_name='target', index=False)
+            # Write target data (cleaned)
+            target_df_clean.to_excel(writer, sheet_name='target', index=False)
 
-            # Write match results
-            results_df.to_excel(writer, sheet_name='match_result', index=False)
+            # Write match results (cleaned)
+            results_df_clean.to_excel(writer, sheet_name='match_result', index=False)
 
             # Get workbook and worksheets for formatting
             workbook = writer.book
@@ -85,12 +102,12 @@ class ExcelExporter:
                 'border': 1
             })
 
-            # Format each worksheet
-            ExcelExporter._format_worksheet(writer.sheets['source'], source_df, header_format)
-            ExcelExporter._format_worksheet(writer.sheets['target'], target_df, header_format)
+            # Format each worksheet (use cleaned dataframes)
+            ExcelExporter._format_worksheet(writer.sheets['source'], source_df_clean, header_format)
+            ExcelExporter._format_worksheet(writer.sheets['target'], target_df_clean, header_format)
             ExcelExporter._format_match_results(
                 writer.sheets['match_result'],
-                results_df,
+                results_df_clean,
                 header_format,
                 exact_match_format,
                 fuzzy_match_format,
@@ -181,13 +198,28 @@ class ExcelExporter:
         Returns:
             Bytes of the Excel file
         """
+        # Clean DataFrames - replace NaN/Inf values
+        source_df_clean = source_df.copy()
+        target_df_clean = target_df.copy()
+        results_df_clean = results_df.copy()
+
+        # Replace NaN and Inf with None
+        source_df_clean = source_df_clean.replace([np.inf, -np.inf], None)
+        target_df_clean = target_df_clean.replace([np.inf, -np.inf], None)
+        results_df_clean = results_df_clean.replace([np.inf, -np.inf], None)
+
+        # Fill NaN with None
+        source_df_clean = source_df_clean.where(pd.notna(source_df_clean), None)
+        target_df_clean = target_df_clean.where(pd.notna(target_df_clean), None)
+        results_df_clean = results_df_clean.where(pd.notna(results_df_clean), None)
+
         output = io.BytesIO()
 
         # Create Excel file with pandas
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            source_df.to_excel(writer, sheet_name='source', index=False)
-            target_df.to_excel(writer, sheet_name='target', index=False)
-            results_df.to_excel(writer, sheet_name='match_result', index=False)
+            source_df_clean.to_excel(writer, sheet_name='source', index=False)
+            target_df_clean.to_excel(writer, sheet_name='target', index=False)
+            results_df_clean.to_excel(writer, sheet_name='match_result', index=False)
 
         # Reload with openpyxl for advanced formatting
         output.seek(0)
