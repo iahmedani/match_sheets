@@ -6,6 +6,7 @@ from src.file_handler import FileHandler
 from src.matcher import DataMatcher
 from src.mapper import ColumnMapper
 from src.exporter import ExcelExporter
+from src.concatenator import FileConcatenator
 import logging
 
 # Configure logging
@@ -58,6 +59,7 @@ st.markdown("""
 
 def initialize_session_state():
     """Initialize Streamlit session state variables"""
+    # Match page variables
     if 'source_df' not in st.session_state:
         st.session_state.source_df = None
     if 'target_df' not in st.session_state:
@@ -69,14 +71,19 @@ def initialize_session_state():
     if 'match_stats' not in st.session_state:
         st.session_state.match_stats = None
 
+    # Concatenate page variables
+    if 'concatenated_df' not in st.session_state:
+        st.session_state.concatenated_df = None
+    if 'concat_summary' not in st.session_state:
+        st.session_state.concat_summary = None
 
-def render_header():
+
+def render_header(page_title: str, page_description: str):
     """Render the application header"""
-    st.markdown('<div class="main-header">🔍 Dataset Comparison Tool</div>', unsafe_allow_html=True)
-    st.markdown("""
+    st.markdown(f'<div class="main-header">{page_title}</div>', unsafe_allow_html=True)
+    st.markdown(f"""
     <div class="info-box">
-    Compare two datasets using intelligent fuzzy matching algorithms. Upload your source and target files,
-    map the columns you want to compare, and get detailed match results with exportable Excel reports.
+    {page_description}
     </div>
     """, unsafe_allow_html=True)
 
@@ -479,13 +486,14 @@ def render_export_section():
     """, unsafe_allow_html=True)
 
 
-def main():
-    """Main application function"""
-    # Initialize session state
-    initialize_session_state()
-
+def match_page():
+    """Render the dataset matching page"""
     # Render header
-    render_header()
+    render_header(
+        "🔍 Dataset Comparison Tool",
+        "Compare two datasets using intelligent fuzzy matching algorithms. Upload your source and target files, "
+        "map the columns you want to compare, and get detailed match results with exportable Excel reports."
+    )
 
     # Render sidebar and get configuration
     threshold, strategy, use_parallel = render_sidebar()
@@ -501,6 +509,211 @@ def main():
     render_results_section()
 
     render_export_section()
+
+
+def concatenate_page():
+    """Render the file concatenation page"""
+    # Render header
+    render_header(
+        "📁 Concatenate Multiple Files",
+        "Combine multiple CSV or Excel files into a single dataset. The tool will add a 'source' column "
+        "to track which file each record came from. Perfect for merging data from multiple sources."
+    )
+
+    st.markdown('<div class="section-header">📤 Upload Files</div>', unsafe_allow_html=True)
+
+    # File uploader for multiple files
+    uploaded_files = st.file_uploader(
+        "Upload multiple CSV or Excel files",
+        type=['csv', 'xlsx', 'xls'],
+        accept_multiple_files=True,
+        help="Select multiple files to concatenate. All files should have similar column structures."
+    )
+
+    if uploaded_files:
+        st.success(f"✅ {len(uploaded_files)} file(s) uploaded")
+
+        # Show uploaded files
+        with st.expander("📋 Uploaded Files"):
+            for idx, file in enumerate(uploaded_files, 1):
+                st.write(f"{idx}. {file.name}")
+
+        # Configuration options
+        st.markdown('<div class="section-header">⚙️ Options</div>', unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            include_source = st.checkbox(
+                "Include 'source' column",
+                value=True,
+                help="Add a column that stores the filename for each record"
+            )
+
+        with col2:
+            source_col_name = st.text_input(
+                "Source column name",
+                value="source",
+                disabled=not include_source,
+                help="Name for the column that will store filenames"
+            )
+
+        # Concatenate button
+        col1, col2, col3 = st.columns([2, 1, 2])
+
+        with col2:
+            if st.button("🔗 Concatenate Files", type="primary", use_container_width=True):
+                with st.spinner("Concatenating files..."):
+                    try:
+                        concatenated_df, errors = FileConcatenator.concatenate_files(
+                            uploaded_files,
+                            include_source=include_source
+                        )
+
+                        # Rename source column if custom name provided
+                        if include_source and source_col_name != 'source' and concatenated_df is not None:
+                            if 'source' in concatenated_df.columns:
+                                concatenated_df.rename(columns={'source': source_col_name}, inplace=True)
+
+                        if errors:
+                            for error in errors:
+                                st.warning(f"⚠️ {error}")
+
+                        if concatenated_df is not None:
+                            st.session_state.concatenated_df = concatenated_df
+                            st.session_state.concat_summary = FileConcatenator.get_concatenation_summary(
+                                concatenated_df,
+                                source_col=source_col_name if include_source else None
+                            )
+                            st.success("✅ Files concatenated successfully!")
+                        else:
+                            st.error("❌ Failed to concatenate files")
+
+                    except Exception as e:
+                        logger.error(f"Error during concatenation: {str(e)}")
+                        st.error(f"❌ Error: {str(e)}")
+
+    # Display results if available
+    if st.session_state.concatenated_df is not None:
+        st.markdown('<div class="section-header">📊 Concatenation Results</div>', unsafe_allow_html=True)
+
+        summary = st.session_state.concat_summary
+
+        # Display summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Total Rows", summary.get('total_rows', 0))
+
+        with col2:
+            st.metric("Total Columns", summary.get('total_columns', 0))
+
+        with col3:
+            st.metric("Source Files", summary.get('number_of_files', len(uploaded_files)))
+
+        with col4:
+            missing_count = sum(summary.get('missing_values', {}).values())
+            st.metric("Missing Values", missing_count)
+
+        # Show rows by source if available
+        if 'rows_by_source' in summary:
+            st.markdown("#### Records by Source File")
+            source_counts_df = pd.DataFrame(
+                list(summary['rows_by_source'].items()),
+                columns=['Source File', 'Record Count']
+            )
+            st.dataframe(source_counts_df, use_container_width=True)
+
+        # Preview data
+        st.markdown("#### Data Preview")
+
+        # Filter by source option
+        if 'source_files' in summary and len(summary['source_files']) > 1:
+            filter_source = st.selectbox(
+                "Filter by source file",
+                options=['All Files'] + summary['source_files'],
+                help="Filter preview by source file"
+            )
+
+            if filter_source != 'All Files':
+                source_col = source_col_name if include_source else 'source'
+                preview_df = st.session_state.concatenated_df[
+                    st.session_state.concatenated_df[source_col] == filter_source
+                ]
+            else:
+                preview_df = st.session_state.concatenated_df
+        else:
+            preview_df = st.session_state.concatenated_df
+
+        st.dataframe(preview_df.head(100), use_container_width=True, height=400)
+
+        if len(preview_df) > 100:
+            st.info(f"Showing first 100 of {len(preview_df)} rows")
+
+        # Export section
+        st.markdown('<div class="section-header">💾 Export Results</div>', unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns([1, 1, 1])
+
+        with col1:
+            if st.button("📥 Download as Excel", type="primary", use_container_width=True):
+                try:
+                    excel_data = FileConcatenator.export_concatenated_data(
+                        st.session_state.concatenated_df,
+                        format='xlsx'
+                    )
+
+                    st.download_button(
+                        label="💾 Download concatenated_data.xlsx",
+                        data=excel_data,
+                        file_name="concatenated_data.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"❌ Error exporting to Excel: {str(e)}")
+
+        with col2:
+            if st.button("📥 Download as CSV", type="secondary", use_container_width=True):
+                try:
+                    csv_data = FileConcatenator.export_concatenated_data(
+                        st.session_state.concatenated_df,
+                        format='csv'
+                    )
+
+                    st.download_button(
+                        label="💾 Download concatenated_data.csv",
+                        data=csv_data,
+                        file_name="concatenated_data.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"❌ Error exporting to CSV: {str(e)}")
+
+
+def main():
+    """Main application function"""
+    # Initialize session state
+    initialize_session_state()
+
+    # Sidebar navigation
+    with st.sidebar:
+        st.title("🧭 Navigation")
+
+        page = st.radio(
+            "Select a tool:",
+            options=["🔍 Match Datasets", "📁 Concatenate Files"],
+            help="Choose the tool you want to use"
+        )
+
+        st.markdown("---")
+
+    # Route to the appropriate page
+    if page == "🔍 Match Datasets":
+        match_page()
+    elif page == "📁 Concatenate Files":
+        concatenate_page()
 
     # Footer
     st.markdown("---")

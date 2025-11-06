@@ -1,20 +1,28 @@
 # Dataset Comparison Tool
 
-A powerful Python application that compares two datasets using intelligent fuzzy matching algorithms with an intuitive Streamlit web interface.
+A powerful Python application with two main features: **fuzzy matching** to compare datasets and **file concatenation** to merge multiple files. Built with an intuitive Streamlit web interface.
 
 ## Features
 
+### 🔍 Dataset Matching
 - **Multi-format Support**: Upload CSV and Excel (XLSX/XLS) files
 - **Intelligent Matching**: Multiple fuzzy matching algorithms including:
   - Levenshtein distance (fuzzy matching)
   - Token-based matching for reordered words
   - Phonetic matching for names
   - Exact matching
-- **Interactive UI**: Modern, responsive web interface built with Streamlit
+- **Interactive UI**: Modern, responsive web interface
 - **Column Mapping**: Auto-suggest or manually map columns between datasets
 - **Configurable Thresholds**: Adjust match sensitivity from 0-100%
 - **Detailed Results**: Color-coded match results with statistics
-- **Excel Export**: Export results with three sheets (source, target, match_result)
+- **Excel Export**: Export results with four sheets (source, target, match_result, complete_data)
+
+### 📁 File Concatenation
+- **Multiple File Upload**: Combine unlimited CSV/Excel files into one dataset
+- **Source Tracking**: Automatically adds a 'source' column to track file origins
+- **Custom Column Names**: Rename the source tracking column
+- **Preview & Filter**: Review data by source file before export
+- **Flexible Export**: Download as Excel or CSV format
 
 ## Installation
 
@@ -55,17 +63,23 @@ The application will open in your default web browser at `http://localhost:8501`
 
 ### Step-by-Step Guide
 
-1. **Upload Files**
+The application has two main tools accessible via the sidebar navigation:
+
+#### 🔍 Match Datasets
+
+1. **Select Tool**: Choose "🔍 Match Datasets" from the sidebar navigation
+
+2. **Upload Files**
    - Upload your source dataset (the dataset you want to match from)
    - Upload your target dataset (the dataset you want to match against)
    - Supported formats: CSV, XLSX, XLS
 
-2. **Map Columns**
+3. **Map Columns**
    - Click "Auto-Suggest Mappings" for automatic column matching
    - Or manually select which columns to compare
    - Preview sample values from each column
 
-3. **Configure Settings** (Sidebar)
+4. **Configure Settings** (Sidebar)
    - **Match Threshold**: Set the minimum similarity percentage (default: 80%)
    - **Matching Strategy**: Choose the algorithm:
      - **Fuzzy**: General purpose (recommended)
@@ -74,11 +88,11 @@ The application will open in your default web browser at `http://localhost:8501`
      - **Phonetic**: Best for similar-sounding names
    - **Parallel Processing**: Enable for faster processing of large datasets
 
-4. **Run Matching**
+5. **Run Matching**
    - Click "Run Matching" to start the comparison
    - View real-time statistics and results
 
-5. **Export Results**
+6. **Export Results**
    - Download the Excel file with complete match results
    - **Four sheets included:**
      - **source**: Original source data
@@ -90,11 +104,42 @@ The application will open in your default web browser at `http://localhost:8501`
      - Yellow: Fuzzy matches
      - Red: No matches
 
+#### 📁 Concatenate Files
+
+1. **Select Tool**: Choose "📁 Concatenate Files" from the sidebar navigation
+
+2. **Upload Multiple Files**
+   - Upload 2 or more CSV or Excel files
+   - Files should have similar column structures for best results
+   - No limit on number of files
+
+3. **Configure Options**
+   - **Include 'source' column**: Toggle to add/remove source tracking (default: ON)
+   - **Source column name**: Customize the name of the source column (default: "source")
+
+4. **Concatenate**
+   - Click "🔗 Concatenate Files" to merge all files
+   - View summary statistics showing:
+     - Total rows and columns
+     - Number of source files
+     - Records per source file
+     - Missing values count
+
+5. **Preview & Filter**
+   - Preview the concatenated data (first 100 rows)
+   - Filter by source file to review specific data
+   - Check the "Records by Source File" table
+
+6. **Export**
+   - **Download as Excel**: Get a formatted .xlsx file
+   - **Download as CSV**: Get a .csv file
+   - File includes all concatenated data with source tracking
+
 ## Project Structure
 
 ```
 match_sheets/
-├── app.py                      # Main Streamlit application
+├── app.py                      # Main Streamlit application (multi-page)
 ├── Claude.md                   # Development instructions
 ├── requirements.txt            # Python dependencies
 ├── README.md                   # This file
@@ -104,11 +149,13 @@ match_sheets/
 │   ├── file_handler.py         # File I/O operations
 │   ├── matcher.py              # Matching algorithms
 │   ├── mapper.py               # Column mapping logic
-│   └── exporter.py             # Excel export functionality
+│   ├── exporter.py             # Excel export functionality
+│   └── concatenator.py         # File concatenation functionality
 ├── utils/
 │   └── __init__.py
 ├── tests/
-│   └── (test files)
+│   ├── test_matcher.py
+│   └── test_file_handler.py
 └── sample_data/
     ├── source_sample.csv       # Sample source dataset
     └── target_sample.csv       # Sample target dataset
