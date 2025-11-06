@@ -1,0 +1,13 @@
+customer_id,full_name,email_address,organization,contact_number
+101,Smith John,john.smith@email.com,Acme Corporation,555-1234
+102,Jane M. Doe,jane.doe@email.com,TechStart Incorporated,555-2345
+103,Bob Johnson,robert.johnson@email.com,Global Solutions,555-3456
+104,Mary Williams,mary.williams@email.com,Innovation Laboratory,555-4567
+105,Mike Brown,michael.brown@email.com,DataTech Company,555-5678
+106,Jenny Davis,j.davis@email.com,Cloud Services Ltd,555-6789
+107,Bill Miller,william.miller@email.com,Smart Systems Inc,555-7890
+108,Liz Wilson,elizabeth.wilson@email.com,Digital Dynamics Corp,555-8901
+109,Dave Anderson,d.anderson@email.com,Future Corporation,555-9012
+110,Sara Martinez,sarah.martinez@email.com,NextGen Solutions LLC,555-0123
+201,Thomas Clark,thomas.clark@email.com,Enterprise Systems,555-1111
+202,Patricia White,p.white@email.com,Tech Innovations,555-2222
