@@ -80,7 +80,12 @@ The application will open in your default web browser at `http://localhost:8501`
 
 5. **Export Results**
    - Download the Excel file with complete match results
-   - Includes color-coded results:
+   - **Four sheets included:**
+     - **source**: Original source data
+     - **target**: Original target data
+     - **match_result**: Detailed match analysis with scores
+     - **complete_data**: All source records with matched target columns (side-by-side view)
+   - Color-coded results:
      - Green: Exact matches
      - Yellow: Fuzzy matches
      - Red: No matches

@@ -24,7 +24,8 @@ class ExcelExporter:
 
     @staticmethod
     def export_to_excel(source_df: pd.DataFrame, target_df: pd.DataFrame,
-                       results_df: pd.DataFrame, filename: str = "match_results.xlsx") -> bytes:
+                       results_df: pd.DataFrame, column_mapping: dict = None,
+                       filename: str = "match_results.xlsx") -> bytes:
         """
         Export datasets and match results to Excel with multiple sheets
 
@@ -32,6 +33,7 @@ class ExcelExporter:
             source_df: Original source DataFrame
             target_df: Original target DataFrame
             results_df: Match results DataFrame
+            column_mapping: Dictionary mapping source columns to target columns
             filename: Name for the Excel file
 
         Returns:
@@ -54,6 +56,14 @@ class ExcelExporter:
         target_df_clean = target_df_clean.where(pd.notna(target_df_clean), None)
         results_df_clean = results_df_clean.where(pd.notna(results_df_clean), None)
 
+        # Create complete_data sheet: source + matched target columns
+        complete_data_df = ExcelExporter._create_complete_data(
+            source_df_clean,
+            target_df_clean,
+            results_df_clean,
+            column_mapping
+        )
+
         # Create a BytesIO buffer
         output = io.BytesIO()
 
@@ -68,6 +78,10 @@ class ExcelExporter:
 
             # Write match results (cleaned)
             results_df_clean.to_excel(writer, sheet_name='match_result', index=False)
+
+            # Write complete data sheet
+            if complete_data_df is not None:
+                complete_data_df.to_excel(writer, sheet_name='complete_data', index=False)
 
             # Get workbook and worksheets for formatting
             workbook = writer.book
@@ -114,6 +128,17 @@ class ExcelExporter:
                 no_match_format,
                 percentage_format
             )
+
+            # Format complete_data sheet
+            if complete_data_df is not None:
+                ExcelExporter._format_complete_data(
+                    writer.sheets['complete_data'],
+                    complete_data_df,
+                    header_format,
+                    exact_match_format,
+                    fuzzy_match_format,
+                    no_match_format
+                )
 
         output.seek(0)
         logger.info("Excel export completed successfully")
@@ -172,6 +197,101 @@ class ExcelExporter:
                     worksheet.write(excel_row, col_num, value, percentage_format)
                 else:
                     worksheet.write(excel_row, col_num, value, row_format)
+
+        # Auto-adjust column widths
+        for col_num, column in enumerate(df.columns):
+            max_length = max(
+                df[column].astype(str).apply(len).max(),
+                len(str(column))
+            )
+            worksheet.set_column(col_num, col_num, min(max_length + 2, 50))
+
+        # Freeze the header row
+        worksheet.freeze_panes(1, 0)
+
+    @staticmethod
+    def _create_complete_data(source_df: pd.DataFrame, target_df: pd.DataFrame,
+                             results_df: pd.DataFrame, column_mapping: dict) -> pd.DataFrame:
+        """
+        Create a complete data DataFrame combining source and matched target columns
+
+        Args:
+            source_df: Source DataFrame
+            target_df: Target DataFrame
+            results_df: Match results DataFrame
+            column_mapping: Dictionary mapping source columns to target columns
+
+        Returns:
+            Complete data DataFrame or None if column_mapping is not provided
+        """
+        if column_mapping is None or len(column_mapping) == 0:
+            logger.warning("No column mapping provided, skipping complete_data sheet")
+            return None
+
+        try:
+            # Start with all source columns
+            complete_df = source_df.copy()
+
+            # Add match status and percentage from results
+            if 'match_status' in results_df.columns:
+                complete_df['match_status'] = results_df['match_status'].values
+            if 'match_percentage' in results_df.columns:
+                complete_df['match_percentage'] = results_df['match_percentage'].values
+
+            # For each target column that was mapped, add it to complete data
+            target_cols = list(column_mapping.values())
+
+            for target_col in set(target_cols):  # Use set to avoid duplicates
+                # Find the corresponding data from results_df
+                result_col_name = f'target_{target_col}'
+                if result_col_name in results_df.columns:
+                    complete_df[f'matched_{target_col}'] = results_df[result_col_name].values
+                else:
+                    # If not in results, try to get from target_df using target_index
+                    if 'target_index' in results_df.columns:
+                        matched_values = []
+                        for idx in results_df['target_index']:
+                            if pd.notna(idx) and int(idx) < len(target_df):
+                                matched_values.append(target_df.iloc[int(idx)][target_col])
+                            else:
+                                matched_values.append(None)
+                        complete_df[f'matched_{target_col}'] = matched_values
+
+            logger.info(f"Created complete_data sheet with {len(complete_df)} rows and {len(complete_df.columns)} columns")
+            return complete_df
+
+        except Exception as e:
+            logger.error(f"Error creating complete_data sheet: {str(e)}")
+            return None
+
+    @staticmethod
+    def _format_complete_data(worksheet, df: pd.DataFrame, header_format,
+                             exact_match_format, fuzzy_match_format, no_match_format):
+        """Apply formatting to complete data worksheet"""
+        # Format headers
+        for col_num, column in enumerate(df.columns):
+            worksheet.write(0, col_num, column, header_format)
+
+        # Find the match_status column
+        status_col_idx = df.columns.get_loc('match_status') if 'match_status' in df.columns else None
+
+        # Apply conditional formatting based on match status
+        for row_num, row in df.iterrows():
+            excel_row = row_num + 1  # Excel rows are 1-indexed, +1 for header
+
+            match_status = row.get('match_status', 'no_match')
+
+            # Select the appropriate format
+            if match_status == 'exact':
+                row_format = exact_match_format
+            elif match_status == 'fuzzy':
+                row_format = fuzzy_match_format
+            else:
+                row_format = no_match_format
+
+            # Apply format to the entire row
+            for col_num, value in enumerate(row):
+                worksheet.write(excel_row, col_num, value, row_format)
 
         # Auto-adjust column widths
         for col_num, column in enumerate(df.columns):

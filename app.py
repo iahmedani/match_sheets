@@ -447,6 +447,7 @@ def render_export_section():
                         st.session_state.source_df,
                         st.session_state.target_df,
                         st.session_state.match_results,
+                        column_mapping=st.session_state.column_mapping,
                         filename="match_results.xlsx"
                     )
 
@@ -472,6 +473,7 @@ def render_export_section():
         <li><strong>source</strong> sheet: Original source dataset</li>
         <li><strong>target</strong> sheet: Original target dataset</li>
         <li><strong>match_result</strong> sheet: Detailed match results with color coding</li>
+        <li><strong>complete_data</strong> sheet: All source records with matched target columns side-by-side</li>
     </ul>
     </div>
     """, unsafe_allow_html=True)
